@@ -40,9 +40,9 @@ if (import.meta.env.VITE_LOCAL_PAYLINKS) {
   });
 }
 
-/** Where ArcPayLinks is deployed. Fill in after deploying (see docs/DEPLOY.md). */
+/** Where ArcPayLinks is deployed (see docs/DEPLOY.md). Deploy tx 0x3bcbb985…c1e3. */
 export const deployments: Record<number, Address | undefined> = {
-  [arcMainnet.id]: undefined,
+  [arcMainnet.id]: '0xbf067bc47e3d18e09edb67911de32d0b41bdf0a2',
 };
 if (import.meta.env.DEV || import.meta.env.VITE_ENABLE_TESTNET === 'true') deployments[5042002] = undefined; // testnet address
 if (LOCAL_PAYLINKS) deployments[31337] = LOCAL_PAYLINKS;
