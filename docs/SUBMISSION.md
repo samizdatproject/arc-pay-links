@@ -16,7 +16,7 @@ https://github.com/samizdatproject
 
 **5. Link to your live deployment on Arc mainnet**
 https://samizdatproject.github.io/arc-pay-links/
-(A paid example receipt: `https://samizdatproject.github.io/arc-pay-links/#/tx/0xee33e8191459c24920a717284ae2f7223877f46f0ff44f08a07db6a5ec2d75db?c=5042`)
+(A paid example receipt: https://samizdatproject.github.io/arc-pay-links/#/receipt?c=5042&to=0x161fF793FDeFCa9e2b42749f9D603aEd8027C369&amt=0.01&n=0x39eb8733ddc12621c81ed5132696f4c10bad0e22a24cd66722f031453ffa46be&m=Arc%20Pay%20Links%20launch%20demo)
 
 **6. Arc mainnet contract address or a transaction hash we can verify**
 Contract `ArcPayLinks`: `0xbf067bc47e3d18e09edb67911de32d0b41bdf0a2` (https://explorer.arc.io/address/0xbf067bc47e3d18e09edb67911de32d0b41bdf0a2)
@@ -38,8 +38,7 @@ No
 No
 
 **12. Anything else we should see?**
-- Tests: 13 Foundry tests, including a fuzz test, a re-entrancy test, fixed vectors shared with the frontend and a check that a testnet payment can never verify a mainnet link; they pass under `forge test` and `arc-forge test --network arc`. There are also 36 frontend unit tests, 10 checks of the deploy script, and an end-to-end test (deploy, pay, verify the receipt, double-pay reverts), run against `arc-anvil --network arc`.
+- Tests: 13 Foundry tests, including a fuzz test, a re-entrancy test, fixed vectors shared with the frontend and a check that a testnet payment can never verify a mainnet link; they pass under `forge test` and `arc-forge test --network arc`. There are also 47 frontend unit tests, 10 checks of the deploy script, and an end-to-end test (deploy, pay, verify the receipt, double-pay reverts), run against `arc-anvil --network arc`.
 - Invoice ids are bound to the chain id and the contract address, so receipts cannot be replayed across networks or deployments.
 - Built with heavy AI assistance (Claude as coding agent) under human direction; disclosed in the README.
-- Demo video: `<optional link>`
 - Next steps if funded: QR codes for in-person payments; ERC-20 path for other stablecoins (EURC); CCTP "pay from any chain" so payers on other chains can settle links on Arc; a webhook-free merchant feed built on the `Paid` event.
