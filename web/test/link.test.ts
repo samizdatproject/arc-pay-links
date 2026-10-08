@@ -43,7 +43,10 @@ describe('invoiceIdOf', () => {
 
 describe('hidden characters in memos', () => {
   const base = { chainId: 5042, merchant, amount: parseUsdc('1'), nonce: nonce1 } as const;
-  it.each(['\u202E', '\u202A', '\u2066', '\u2069', '\u200B', '\u200D', '\u200F', '\uFEFF', '\u2060'])(
+  it.each([
+    '\u202E', '\u202A', '\u2066', '\u2069', '\u200B', '\u200D', '\u200F', '\uFEFF', '\u2060',
+    '\u00AD', '\u034F', '\u061C', '\u115F', '\u1160', '\u3164', '\u180E', '\u{E0000}', '\u{E0041}', '\u{E007F}',
+  ])(
     'rejects U+%s',
     (c) => {
       expect(() => encodeLink({ ...base, memo: `pay ${c}evil` })).toThrow(/invisible|direction/);
@@ -55,6 +58,13 @@ describe('hidden characters in memos', () => {
   it('reveals hidden characters for display', () => {
     expect(revealHidden('a\u202Eb')).toBe('a\\u{202E}b');
     expect(revealHidden('plain ☕')).toBe('plain ☕');
+    // Tag characters are astral (surrogate pairs) and must be revealed as one code point.
+    expect(revealHidden('x\u{E0041}y')).toBe('x\\u{E0041}y');
+  });
+  it('still allows ordinary non-ASCII memos', () => {
+    for (const memo of ['café ☕', 'Rechnung Nr. 7 – Müller', 'فاتورة ٧', '請求書 #7', 'emoji 👍🏽 ok']) {
+      expect(decodeLink(encodeLink({ ...base, memo })).memo).toBe(memo);
+    }
   });
 });
 

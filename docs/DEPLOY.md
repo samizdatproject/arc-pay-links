@@ -60,7 +60,7 @@ The deploy page is left out of production builds, so it is only available from a
      --chain-id 5042 --verifier blockscout --verifier-url https://explorer.arc.io/api/
    ```
    The compiler settings are pinned in `contracts/foundry.toml`: solc 0.8.28, optimizer 10,000 runs, `evm_version = cancun` and `bytecode_hash = none`.
-2. **Point the app at the contract.** In `web/src/chains.ts`, set `deployments[5042] = '<ADDRESS>'`.
+2. **Point the app at the contract.** In `web/src/chains.ts`, set `deployments[5042] = '<ADDRESS>'`. Deploy only once: links are bound to this address, so a redeploy invalidates every link already shared.
 3. **Make one real payment** so that the receipt page has something to show:
    - open the app and create a link for 0.05 USDC to an address you control, with a memo such as "Arc Pay Links: first mainnet payment";
    - pay it from a second wallet, or from the same wallet;

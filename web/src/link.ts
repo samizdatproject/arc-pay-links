@@ -64,9 +64,15 @@ export function invoiceIdOf(l: Pick<PayLink, 'chainId' | 'merchant' | 'amount' |
   );
 }
 
-/** Bidi overrides/isolates and zero-width characters, which can make a memo display differently from what it says. */
-export const HIDDEN_CHARS = /[\u200B-\u200F\u202A-\u202E\u2060-\u2069\uFEFF]/;
-const HIDDEN_CHARS_G = new RegExp(HIDDEN_CHARS.source, 'g');
+/**
+ * Invisible, blank-looking and direction-changing characters, which can make a memo display
+ * differently from what it says: soft hyphen, combining grapheme joiner, Arabic letter mark,
+ * Hangul fillers, Mongolian vowel separator, zero-width and bidi marks/overrides/isolates,
+ * word joiner and invisible operators, BOM, and Unicode tag characters.
+ */
+export const HIDDEN_CHARS =
+  /[\u00AD\u034F\u061C\u115F\u1160\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2069\u3164\uFEFF\u{E0000}-\u{E007F}]/u;
+const HIDDEN_CHARS_G = new RegExp(HIDDEN_CHARS.source, 'gu');
 
 /** Makes hidden characters visible, for memos that did not come through our own validation (e.g. read from a tx). */
 export function revealHidden(s: string): string {

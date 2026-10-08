@@ -95,7 +95,11 @@ cd .. && scripts/test-deploy.sh
 - There is no refund flow. A refund is a normal transfer from the merchant back to the payer.
 - The contract has no owner and no rescue function. USDC sent to the contract through the ERC-20 interface (`0x3600…0000`) is not forwarded and **cannot be recovered**. A direct `pay` call with a value different from the link's amount does not fail: it creates, and pays, a different invoice id, which the original link will not show as paid.
 - Production builds offer Arc mainnet only. Testnet appears only in dev builds or builds made with `VITE_ENABLE_TESTNET=true`, and every page on a test network shows a red "TEST NETWORK — NO REAL MONEY" banner instead of a "verified" badge.
-- Memos with invisible or direction-changing characters are rejected when links are created or opened. Memos read from a transaction show such characters as `\u{…}`.
+- Memos read from a transaction show hidden characters as `\u{…}`.
+- **Redeploying the contract invalidates every outstanding link.** The invoice id includes the contract address, so after a redeploy, open links compute new ids and old receipts stop matching (the old payments stay visible on the explorer). Deploy once, and do not change `deployments[5042]` while links are in circulation.
+- A receipt badge says where the matched link came from. "Verified: matches a link you created" means the link is in this browser's saved links. "Matches the link in this URL" only proves that the URL's link was paid: compare its invoice id with the one you got when you created the link.
+- Memos with invisible, blank-looking or direction-changing characters are rejected (this includes the zero-width joiner, so joined emoji sequences such as family emoji are not allowed in memos).
+- **Pushes to `main` publish the site.** Anyone who can push to `main` can change the page that payers see, so enable branch protection on `main` (require pull requests and the `ci / test` check) before sharing links.
 - The contract is unaudited. It is about 70 lines, holds no funds and has no admin functions, but use it at your own risk.
 
 ## How this was built

@@ -1,6 +1,6 @@
 import './style.css';
 import { BaseError, isAddress, type Address, type Hex } from 'viem';
-import { chains, defaultChainId, deployments, explorerAddress, explorerTx, arcMainnet, arcTestnet, isRealMoney } from './chains';
+import { chains, defaultChainId, deployments, explorerAddress, explorerTx, isRealMoney } from './chains';
 import { arcPayLinksAbi, arcPayLinksBytecode } from './contract';
 import { decodeLink, encodeLink, formatUsdc, invoiceIdOf, MAX_MEMO_BYTES, parseUsdc, randomNonce, revealHidden, type PayLink } from './link';
 import { fetchPaymentsInTx, fetchReceipt, matchLink, type Receipt } from './receipt';
@@ -151,10 +151,26 @@ function viewCreate() {
   );
 }
 
-function receiptCard(chainId: number, r: Receipt) {
+/** True when this browser created the link (it is in "my links"), as opposed to only arriving in a URL. */
+function isSavedLink(link: PayLink): boolean {
+  return savedLinks().includes(encodeLink(link));
+}
+
+/**
+ * `link` is the link the receipt was matched against. The badge says where that link came from:
+ * a link this browser created is a real verification; a link that only came in the URL proves
+ * just that the URL's link was paid, so the viewer is asked to compare the invoice id.
+ */
+function receiptCard(chainId: number, r: Receipt, link: PayLink) {
+  const saved = isSavedLink(link);
+  const badge = !isRealMoney(chainId)
+    ? null
+    : saved
+      ? h('span', { class: 'badge ok' }, 'verified: matches a link you created')
+      : h('span', { class: 'badge open' }, 'matches the link in this URL — compare the invoice id with yours');
   return h('section', { class: 'card receipt' },
     testBanner(chainId),
-    h('h2', {}, 'Paid ', isRealMoney(chainId) ? h('span', { class: 'badge ok' }, 'verified onchain') : null),
+    h('h2', {}, 'Paid ', badge),
     row('Amount', `${formatUsdc(r.amount)} USDC`),
     row('To', extLink(explorerAddress(chainId, r.merchant), r.merchant)),
     row('From', extLink(explorerAddress(chainId, r.payer), r.payer)),
@@ -197,7 +213,7 @@ async function viewPay(query: string) {
   try {
     contract = contractFor(link.chainId);
     const existing = await fetchReceipt(publicClientFor(chain), contract, link);
-    if (existing) return render(receiptCard(link.chainId, existing));
+    if (existing) return render(receiptCard(link.chainId, existing, link));
     status.textContent = 'Not paid yet.';
     payBtn.removeAttribute('disabled');
   } catch (e) {
@@ -243,7 +259,7 @@ async function viewReceipt(query: string) {
       return render(h('section', { class: 'card' }, h('h2', {}, 'Not paid yet'),
         h('p', {}, 'No payment for this exact link is recorded onchain.'),
         h('a', { class: 'button', href: `#/pay?${query}` }, 'Go to payment page')));
-    render(receiptCard(link.chainId, r));
+    render(receiptCard(link.chainId, r, link));
   } catch (e) {
     render(h('section', { class: 'card' }, h('h2', {}, 'Could not read the receipt'), h('p', {}, errText(e))));
   }
@@ -281,7 +297,7 @@ async function viewTx(hash: string, query: string) {
     const payments = await fetchPaymentsInTx(publicClientFor(chainOf(chainId)), contract, hash as Hex);
     render(...payments.map((r) => {
       const link = matchLink(r, candidates, contract);
-      return link ? receiptCard(chainId, { ...r, memo: link.memo }) : unmatchedCard(chainId, r);
+      return link ? receiptCard(chainId, { ...r, memo: link.memo }, link) : unmatchedCard(chainId, r);
     }));
   } catch (e) {
     render(h('section', { class: 'card' }, h('h2', {}, 'No receipt found'), h('p', {}, errText(e))));
@@ -336,7 +352,7 @@ function viewLookup() {
 
 function viewDeploy() {
   const network = h('select', {});
-  for (const c of [arcTestnet, arcMainnet]) network.append(h('option', { value: String(c.id) }, c.name));
+  for (const c of Object.values(chains)) network.append(h('option', { value: String(c.id) }, c.name));
   const status = h('p', { class: 'status' });
   render(h('section', { class: 'card' }, h('h2', {}, 'Deploy ArcPayLinks from your wallet'),
     h('p', {}, 'For operators. Deploys the contract from the connected browser wallet; the key never leaves the wallet. Expected cost: about 0.01 USDC in gas.'),

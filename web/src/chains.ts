@@ -9,40 +9,43 @@ export const arcMainnet = defineChain({
   blockExplorers: { default: { name: 'Arc Explorer', url: 'https://explorer.arc.io' } },
 });
 
-export const arcTestnet = defineChain({
-  id: 5042002,
-  name: 'Arc Testnet',
-  nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
-  rpcUrls: { default: { http: ['https://rpc.testnet.arc.io'] } },
-  blockExplorers: { default: { name: 'Arc Testnet Explorer', url: 'https://explorer.testnet.arc.io' } },
-  testnet: true,
-});
-
-/** Local anvil, for development and the e2e script. */
-export const localAnvil = defineChain({
-  id: 31337,
-  name: 'Local (anvil)',
-  nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
-  rpcUrls: { default: { http: ['http://127.0.0.1:8545'] } },
-  testnet: true,
-});
-
-const env: Record<string, unknown> = import.meta.env ?? {};
-/** Test networks are only offered in dev builds or when explicitly enabled at build time. */
-export const TESTNETS_ENABLED: boolean = Boolean(env.DEV) || env.VITE_ENABLE_TESTNET === 'true';
+/**
+ * Test networks are only offered in dev builds or when explicitly enabled at build time.
+ * These are literal `import.meta.env.*` reads so Vite replaces them at build time and the
+ * testnet / localhost definitions below are dropped from production bundles entirely.
+ */
+export const TESTNETS_ENABLED: boolean = import.meta.env.DEV || import.meta.env.VITE_ENABLE_TESTNET === 'true';
 /** A local anvil chain is only offered when a local contract address is supplied at build time. */
-const LOCAL_PAYLINKS = env.VITE_LOCAL_PAYLINKS as Address | undefined;
+const LOCAL_PAYLINKS = import.meta.env.VITE_LOCAL_PAYLINKS as Address | undefined;
 
 export const chains: Record<number, Chain> = { [arcMainnet.id]: arcMainnet };
-if (TESTNETS_ENABLED) chains[arcTestnet.id] = arcTestnet;
-if (LOCAL_PAYLINKS) chains[localAnvil.id] = localAnvil;
+if (import.meta.env.DEV || import.meta.env.VITE_ENABLE_TESTNET === 'true') {
+  chains[5042002] = defineChain({
+    id: 5042002,
+    name: 'Arc Testnet',
+    nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
+    rpcUrls: { default: { http: ['https://rpc.testnet.arc.io'] } },
+    blockExplorers: { default: { name: 'Arc Testnet Explorer', url: 'https://explorer.testnet.arc.io' } },
+    testnet: true,
+  });
+}
+if (import.meta.env.VITE_LOCAL_PAYLINKS) {
+  // Local anvil, for development and the browser smoke test.
+  chains[31337] = defineChain({
+    id: 31337,
+    name: 'Local (anvil)',
+    nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
+    rpcUrls: { default: { http: ['http://127.0.0.1:8545'] } },
+    testnet: true,
+  });
+}
 
 /** Where ArcPayLinks is deployed. Fill in after deploying (see docs/DEPLOY.md). */
 export const deployments: Record<number, Address | undefined> = {
   [arcMainnet.id]: undefined,
-  [arcTestnet.id]: undefined,
-  [localAnvil.id]: LOCAL_PAYLINKS,
 };
+if (import.meta.env.DEV || import.meta.env.VITE_ENABLE_TESTNET === 'true') deployments[5042002] = undefined; // testnet address
+if (LOCAL_PAYLINKS) deployments[31337] = LOCAL_PAYLINKS;
 
 /** Only Arc mainnet moves real money. Everything else gets a loud warning instead of a "verified" badge. */
 export function isRealMoney(chainId: number): boolean {
