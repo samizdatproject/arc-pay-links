@@ -4,8 +4,8 @@ pragma solidity ^0.8.24;
 import {Script, console} from "forge-std/Script.sol";
 import {ArcPayLinks} from "../src/ArcPayLinks.sol";
 
-/// Usage (key read from the env, never passed on the command line):
-///   forge script script/Deploy.s.sol --rpc-url arc_testnet --private-key "$DEPLOYER_PRIVATE_KEY" --broadcast
+/// Usage: run through scripts/deploy.sh, which signs with an encrypted Foundry keystore:
+///   forge script script/Deploy.s.sol --rpc-url arc_testnet --keystore <file> --sender <address> --broadcast
 contract Deploy is Script {
     function run() external returns (ArcPayLinks links) {
         vm.startBroadcast();

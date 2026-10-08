@@ -5,11 +5,11 @@ The app is a static site: `web/dist` after `npm run build`, about 300 kB of Java
 ## Primary: GitHub Pages under `samizdatproject`
 
 1. Create the **public** repo `samizdatproject/arc-pay-links`, then push `main`. Both steps need the owner's approval.
-2. In the repo, set Settings → Pages → Source to **GitHub Actions**. `.github/workflows/pages.yml` then builds `web/` and publishes it on every push to `main`.
+2. In the repo, set Settings → Pages → Source to **GitHub Actions**. `.github/workflows/ci.yml` then runs all tests and, only if they pass, builds `web/` and publishes it on every push to `main`. Every action is pinned to a commit SHA.
 3. The live URL will be **https://samizdatproject.github.io/arc-pay-links/**.
 4. After the mainnet deploy, commit the contract address in `web/src/chains.ts` and push. The site redeploys on its own.
 
-`.github/workflows/test.yml` runs the Foundry tests, the unit tests and the build on every push.
+The production build offers Arc mainnet only and carries a Content-Security-Policy (`default-src 'self'; connect-src https://rpc.mainnet.arc.io; img-src 'self' data:; base-uri 'none'; form-action 'none'; object-src 'none'`). The browser-wallet deploy page is not included.
 
 ## Fallbacks (no account beyond GitHub)
 

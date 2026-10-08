@@ -27,25 +27,31 @@ export const localAnvil = defineChain({
   testnet: true,
 });
 
-export const chains: Record<number, Chain> = {
-  [arcMainnet.id]: arcMainnet,
-  [arcTestnet.id]: arcTestnet,
-  [localAnvil.id]: localAnvil,
-};
+const env: Record<string, unknown> = import.meta.env ?? {};
+/** Test networks are only offered in dev builds or when explicitly enabled at build time. */
+export const TESTNETS_ENABLED: boolean = Boolean(env.DEV) || env.VITE_ENABLE_TESTNET === 'true';
+/** A local anvil chain is only offered when a local contract address is supplied at build time. */
+const LOCAL_PAYLINKS = env.VITE_LOCAL_PAYLINKS as Address | undefined;
 
-/**
- * Where ArcPayLinks is deployed. Fill in after deploying (see DEPLOY.md).
- * A local address can also be supplied at build time with VITE_LOCAL_PAYLINKS.
- */
+export const chains: Record<number, Chain> = { [arcMainnet.id]: arcMainnet };
+if (TESTNETS_ENABLED) chains[arcTestnet.id] = arcTestnet;
+if (LOCAL_PAYLINKS) chains[localAnvil.id] = localAnvil;
+
+/** Where ArcPayLinks is deployed. Fill in after deploying (see docs/DEPLOY.md). */
 export const deployments: Record<number, Address | undefined> = {
   [arcMainnet.id]: undefined,
   [arcTestnet.id]: undefined,
-  [localAnvil.id]: (import.meta.env?.VITE_LOCAL_PAYLINKS as Address | undefined) ?? undefined,
+  [localAnvil.id]: LOCAL_PAYLINKS,
 };
 
-/** The chain new links default to: mainnet once deployed there, else testnet. */
+/** Only Arc mainnet moves real money. Everything else gets a loud warning instead of a "verified" badge. */
+export function isRealMoney(chainId: number): boolean {
+  return chainId === arcMainnet.id;
+}
+
+/** The chain new links default to. */
 export function defaultChainId(): number {
-  return deployments[arcMainnet.id] ? arcMainnet.id : arcTestnet.id;
+  return arcMainnet.id;
 }
 
 export function explorerTx(chainId: number, hash: string): string | undefined {

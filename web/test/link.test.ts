@@ -2,30 +2,59 @@ import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { arcPayLinksAbi, arcPayLinksBytecode } from '../src/contract';
-import { decodeLink, encodeLink, formatUsdc, invoiceIdOf, parseUsdc, randomNonce, type PayLink } from '../src/link';
+import { decodeLink, encodeLink, formatUsdc, invoiceIdOf, parseUsdc, randomNonce, revealHidden, type PayLink } from '../src/link';
 
 const merchant = '0x000000000000000000000000000000000000bEEF';
 const nonce1 = `0x${'0'.repeat(63)}1` as const;
 
+const contract = '0x00000000000000000000000000000000c0ffee00';
+
 describe('invoiceIdOf', () => {
-  it('matches the Solidity known vector (contracts/test test_InvoiceIdKnownVector)', () => {
-    expect(invoiceIdOf({ merchant, amount: 1_500_000_000_000_000_000n, nonce: nonce1, memo: 'Invoice #7' })).toBe(
-      '0x97cb530360c187e7f7c1ed2b307bf9a6082de8de15f3c775355eda1feda6fa8a',
+  const vector = { merchant, amount: 1_500_000_000_000_000_000n, nonce: nonce1, memo: 'Invoice #7' } as const;
+
+  it('matches the Solidity known vectors (contracts/test test_InvoiceIdKnownVectors)', () => {
+    expect(invoiceIdOf({ ...vector, chainId: 5042 }, contract)).toBe(
+      '0xf45eea7981f89ee5addfb755ee6dc37081eb2f79dff961a404b9152949aa4045',
+    );
+    expect(invoiceIdOf({ ...vector, chainId: 5042002 }, contract)).toBe(
+      '0x830d86cb87b1d2a71b40763d456869bb76ce65e3963853d394ed43dcd50fb526',
     );
   });
 
+  it('differs across chain ids and contract addresses', () => {
+    const id = invoiceIdOf({ ...vector, chainId: 5042 }, contract);
+    expect(invoiceIdOf({ ...vector, chainId: 5042002 }, contract)).not.toBe(id);
+    expect(invoiceIdOf({ ...vector, chainId: 5042 }, '0x00000000000000000000000000000000c0ffee01')).not.toBe(id);
+  });
+
   it('changes when any field changes', () => {
-    const base = { merchant, amount: 10n ** 18n, nonce: nonce1, memo: 'a' } as const;
-    const id = invoiceIdOf(base);
-    expect(invoiceIdOf({ ...base, amount: 2n * 10n ** 18n })).not.toBe(id);
-    expect(invoiceIdOf({ ...base, memo: 'b' })).not.toBe(id);
-    expect(invoiceIdOf({ ...base, merchant: '0x000000000000000000000000000000000000dEaD' })).not.toBe(id);
-    expect(invoiceIdOf({ ...base, nonce: `0x${'0'.repeat(63)}2` })).not.toBe(id);
+    const base = { chainId: 5042, merchant, amount: 10n ** 18n, nonce: nonce1, memo: 'a' } as const;
+    const id = invoiceIdOf(base, contract);
+    expect(invoiceIdOf({ ...base, amount: 2n * 10n ** 18n }, contract)).not.toBe(id);
+    expect(invoiceIdOf({ ...base, memo: 'b' }, contract)).not.toBe(id);
+    expect(invoiceIdOf({ ...base, merchant: '0x000000000000000000000000000000000000dEaD' }, contract)).not.toBe(id);
+    expect(invoiceIdOf({ ...base, nonce: `0x${'0'.repeat(63)}2` }, contract)).not.toBe(id);
   });
 
   it('hashes the memo as UTF-8', () => {
-    const a = invoiceIdOf({ merchant, amount: 1n, nonce: nonce1, memo: 'café ☕' });
-    expect(a).toMatch(/^0x[0-9a-f]{64}$/);
+    expect(invoiceIdOf({ chainId: 5042, merchant, amount: 1n, nonce: nonce1, memo: 'café ☕' }, contract)).toMatch(/^0x[0-9a-f]{64}$/);
+  });
+});
+
+describe('hidden characters in memos', () => {
+  const base = { chainId: 5042, merchant, amount: parseUsdc('1'), nonce: nonce1 } as const;
+  it.each(['\u202E', '\u202A', '\u2066', '\u2069', '\u200B', '\u200D', '\u200F', '\uFEFF', '\u2060'])(
+    'rejects U+%s',
+    (c) => {
+      expect(() => encodeLink({ ...base, memo: `pay ${c}evil` })).toThrow(/invisible|direction/);
+      const q = new URLSearchParams(encodeLink({ ...base, memo: 'ok' }));
+      q.set('m', `pay ${c}evil`);
+      expect(() => decodeLink(q.toString())).toThrow(/invisible|direction/);
+    },
+  );
+  it('reveals hidden characters for display', () => {
+    expect(revealHidden('a\u202Eb')).toBe('a\\u{202E}b');
+    expect(revealHidden('plain ☕')).toBe('plain ☕');
   });
 });
 
@@ -46,7 +75,7 @@ describe('link encoding', () => {
   it('round-trips', () => {
     const back = decodeLink(encodeLink(link));
     expect(back).toEqual({ ...link, merchant: '0x000000000000000000000000000000000000bEEF' });
-    expect(invoiceIdOf(back)).toBe(invoiceIdOf(link));
+    expect(invoiceIdOf(back, contract)).toBe(invoiceIdOf(link, contract));
   });
 
   it('checksums the merchant address', () => {

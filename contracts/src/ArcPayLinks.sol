@@ -4,9 +4,13 @@ pragma solidity ^0.8.24;
 /// @title ArcPayLinks
 /// @notice Pay a USDC payment link on Arc in one transaction and leave an onchain receipt.
 /// @dev On Arc, USDC is the native gas token (18 decimals), so `msg.value` is a USDC amount.
-///      A link is (merchant, amount, nonce, memo). Its invoice id commits to all four fields,
-///      so editing any field of a link produces a different id, and each id can be paid once.
-///      The contract never holds funds: the payment is forwarded to the merchant in the same call.
+///      A link is (merchant, amount, nonce, memo). Its invoice id commits to all four fields plus
+///      the chain id and this contract's address, so editing any field of a link produces a different
+///      id, a payment on one chain or deployment never matches a link for another, and each id can be
+///      paid once. The contract never holds funds: the payment is forwarded to the merchant in the
+///      same call. There is no owner and no rescue function: USDC sent to this contract through the
+///      ERC-20 interface (0x3600...0000) is not forwarded and cannot be recovered, and a direct `pay`
+///      call with a different value simply creates (and pays) a different invoice id.
 contract ArcPayLinks {
     struct Receipt {
         address payer;
@@ -33,13 +37,14 @@ contract ArcPayLinks {
     error AlreadyPaid(bytes32 invoiceId);
     error TransferFailed();
 
-    /// @notice Deterministic id of a payment link. Mirrored in the web app (src/link.ts).
+    /// @notice Deterministic id of a payment link on this chain and this deployment.
+    ///         Mirrored in the web app (src/link.ts).
     function invoiceIdOf(address merchant, uint256 amount, bytes32 nonce, string calldata memo)
         public
-        pure
+        view
         returns (bytes32)
     {
-        return keccak256(abi.encode(merchant, amount, nonce, keccak256(bytes(memo))));
+        return keccak256(abi.encode(block.chainid, address(this), merchant, amount, nonce, keccak256(bytes(memo))));
     }
 
     /// @notice Pay a link. Send exactly the link amount as native USDC.

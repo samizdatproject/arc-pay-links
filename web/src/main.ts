@@ -1,9 +1,9 @@
 import './style.css';
 import { BaseError, isAddress, type Address, type Hex } from 'viem';
-import { chains, defaultChainId, deployments, explorerAddress, explorerTx, arcMainnet, arcTestnet, localAnvil } from './chains';
+import { chains, defaultChainId, deployments, explorerAddress, explorerTx, arcMainnet, arcTestnet, isRealMoney } from './chains';
 import { arcPayLinksAbi, arcPayLinksBytecode } from './contract';
-import { decodeLink, encodeLink, formatUsdc, invoiceIdOf, MAX_MEMO_BYTES, parseUsdc, randomNonce, type PayLink } from './link';
-import { fetchReceipt, fetchReceiptByTx, type Receipt } from './receipt';
+import { decodeLink, encodeLink, formatUsdc, invoiceIdOf, MAX_MEMO_BYTES, parseUsdc, randomNonce, revealHidden, type PayLink } from './link';
+import { fetchPaymentsInTx, fetchReceipt, matchLink, type Receipt } from './receipt';
 import { connectWallet, publicClientFor } from './wallet';
 
 // ---------- tiny DOM helpers (textContent only, so link data can never inject HTML) ----------
@@ -48,6 +48,16 @@ function chainOf(chainId: number) {
   if (!c) throw new Error(`Unsupported chain ${chainId}`);
   return c;
 }
+/** Loud warning shown on every page about a chain other than Arc mainnet. */
+function testBanner(chainId: number) {
+  return isRealMoney(chainId)
+    ? null
+    : h('div', { class: 'testnet-banner', role: 'alert' }, `TEST NETWORK (${chains[chainId]?.name ?? `chain ${chainId}`}) — NO REAL MONEY`);
+}
+function idOrDash(link: PayLink) {
+  const c = deployments[link.chainId];
+  return c ? h('code', {}, invoiceIdOf(link, c)) : '—';
+}
 function baseUrl() {
   return `${location.origin}${location.pathname}`;
 }
@@ -76,7 +86,7 @@ function viewCreate() {
   const amount = h('input', { id: 'amount', placeholder: '25.00', inputmode: 'decimal' });
   const memo = h('input', { id: 'memo', placeholder: 'Invoice #42 — logo design', maxlength: String(MAX_MEMO_BYTES) });
   const network = h('select', { id: 'network' });
-  for (const c of [arcMainnet, arcTestnet, ...(deployments[localAnvil.id] ? [localAnvil] : [])]) {
+  for (const c of Object.values(chains)) {
     const opt = h('option', { value: String(c.id) }, `${c.name}${deployments[c.id] ? '' : ' (not deployed yet)'}`);
     if (c.id === defaultChainId()) opt.selected = true;
     network.append(opt);
@@ -119,8 +129,9 @@ function viewCreate() {
           } }, 'Copy link'),
           h('a', { class: 'button ghost', href: `#/pay?${q}` }, 'Open it'),
         ),
-        row('Invoice id', h('code', {}, invoiceIdOf(link))),
-        h('p', { class: 'hint' }, 'The invoice id commits to the address, amount, memo and a random nonce. Change any of them and it is a different invoice, so a tampered link cannot be passed off as yours.'),
+        testBanner(link.chainId) ?? '',
+        row('Invoice id', idOrDash(link)),
+        h('p', { class: 'hint' }, 'Keep this link: it is how you verify the payment later. The invoice id commits to the network, the contract, the address, the amount, the memo and a random nonce, so a payment for an edited link can never show up as a payment of yours. It does not stop someone sending a payer an edited link, so payers should check the address and amount before paying.'),
       );
     } catch (err) {
       status.textContent = errText(err);
@@ -142,11 +153,12 @@ function viewCreate() {
 
 function receiptCard(chainId: number, r: Receipt) {
   return h('section', { class: 'card receipt' },
-    h('h2', {}, 'Paid ', h('span', { class: 'badge ok' }, 'verified onchain')),
+    testBanner(chainId),
+    h('h2', {}, 'Paid ', isRealMoney(chainId) ? h('span', { class: 'badge ok' }, 'verified onchain') : null),
     row('Amount', `${formatUsdc(r.amount)} USDC`),
     row('To', extLink(explorerAddress(chainId, r.merchant), r.merchant)),
     row('From', extLink(explorerAddress(chainId, r.payer), r.payer)),
-    r.memo ? row('Memo', r.memo) : null,
+    r.memo ? row('Memo', revealHidden(r.memo)) : null,
     row('Paid at', r.paidAt.toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC')),
     row('Network', chainOf(chainId).name),
     row('Block', String(r.blockNumber)),
@@ -168,12 +180,13 @@ async function viewPay(query: string) {
   const payBtn = h('button', { type: 'button', disabled: '' }, `Pay ${formatUsdc(link.amount)} USDC`);
   render(
     h('section', { class: 'card' },
+      testBanner(link.chainId),
       h('h2', {}, 'Payment request'),
       h('p', { class: 'amount' }, `${formatUsdc(link.amount)} `, h('small', {}, 'USDC')),
       link.memo ? row('For', link.memo) : null,
       row('Pay to', extLink(explorerAddress(link.chainId, link.merchant), link.merchant)),
       row('Network', chain.name),
-      row('Invoice id', h('code', {}, invoiceIdOf(link))),
+      row('Invoice id', idOrDash(link)),
       h('div', { class: 'actions' }, payBtn),
       status,
       h('p', { class: 'hint' }, 'You pay with USDC; network fees are also paid in USDC and are a fraction of a cent.'),
@@ -236,12 +249,40 @@ async function viewReceipt(query: string) {
   }
 }
 
+function unmatchedCard(chainId: number, r: Receipt) {
+  return h('section', { class: 'card receipt' },
+    testBanner(chainId),
+    h('h2', {}, 'Payment found ', h('span', { class: 'badge open' }, 'not matched to an invoice')),
+    h('p', { class: 'hint' }, 'This is a real ArcPayLinks payment, but it is not verified against an invoice: paste the payment link below (or open this page in the browser that created the link) to check that it pays that exact invoice.'),
+    row('Amount', `${formatUsdc(r.amount)} USDC`),
+    row('To', extLink(explorerAddress(chainId, r.merchant), r.merchant)),
+    row('From', extLink(explorerAddress(chainId, r.payer), r.payer)),
+    r.memo ? row('Memo (as sent)', revealHidden(r.memo)) : null,
+    row('Paid at', r.paidAt.toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC')),
+    r.txHash ? row('Transaction', extLink(explorerTx(chainId, r.txHash), short(r.txHash))) : null,
+    row('Invoice id', h('code', {}, r.invoiceId)),
+  );
+}
+
 async function viewTx(hash: string, query: string) {
-  const chainId = Number(new URLSearchParams(query).get('c') ?? defaultChainId());
+  const params = new URLSearchParams(query);
+  const chainId = Number(params.get('c') ?? defaultChainId());
   render(h('section', { class: 'card' }, h('p', {}, 'Reading the transaction from Arc…')));
   try {
-    const r = await fetchReceiptByTx(publicClientFor(chainOf(chainId)), contractFor(chainId), hash as Hex);
-    render(receiptCard(chainId, r));
+    const contract = contractFor(chainId);
+    const candidates: PayLink[] = [];
+    for (const q of [params.get('link') ?? '', ...savedLinks()]) {
+      try {
+        if (q) candidates.push(decodeLink(q.replace(/^.*?\?/, '')));
+      } catch {
+        // ignore malformed candidates
+      }
+    }
+    const payments = await fetchPaymentsInTx(publicClientFor(chainOf(chainId)), contract, hash as Hex);
+    render(...payments.map((r) => {
+      const link = matchLink(r, candidates, contract);
+      return link ? receiptCard(chainId, { ...r, memo: link.memo }) : unmatchedCard(chainId, r);
+    }));
   } catch (e) {
     render(h('section', { class: 'card' }, h('h2', {}, 'No receipt found'), h('p', {}, errText(e))));
   }
@@ -280,13 +321,17 @@ async function viewLinks() {
 
 function viewLookup() {
   const hash = h('input', { placeholder: '0x… transaction hash', class: 'mono' });
+  const link = h('input', { placeholder: 'Payment link (optional, needed to verify the invoice)', class: 'mono' });
   const network = h('select', {});
   for (const c of Object.values(chains)) if (deployments[c.id]) network.append(h('option', { value: String(c.id) }, c.name));
   render(h('section', { class: 'card' }, h('h2', {}, 'Verify a payment by transaction hash'),
     h('form', { onsubmit: (e: Event) => {
       e.preventDefault();
-      location.hash = `#/tx/${hash.value.trim()}?c=${network.value}`;
-    } }, hash, network, h('button', { type: 'submit' }, 'Verify'))));
+      const p = new URLSearchParams({ c: network.value });
+      if (link.value.trim()) p.set('link', link.value.trim());
+      location.hash = `#/tx/${hash.value.trim()}?${p}`;
+    } }, h('label', {}, 'Transaction hash'), hash, h('label', {}, 'Payment link'), link,
+      h('label', {}, 'Network'), network, h('button', { type: 'submit' }, 'Verify'))));
 }
 
 function viewDeploy() {
@@ -320,8 +365,11 @@ function route() {
   if (path?.startsWith('/tx/')) return void viewTx(path.slice(4), query);
   if (path === '/links') return void viewLinks();
   if (path === '/verify') return viewLookup();
-  if (path === '/deploy') return viewDeploy();
+  if (path === '/deploy' && import.meta.env.DEV) return viewDeploy();
   return viewCreate();
+}
+if (import.meta.env.DEV) {
+  document.querySelector('footer')?.append(' · ', h('a', { href: '#/deploy' }, 'deploy (dev only)'));
 }
 window.addEventListener('hashchange', route);
 route();

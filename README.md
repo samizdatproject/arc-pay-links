@@ -26,7 +26,10 @@ create link  ──(URL: to, amt,     open link ─► wallet ─► ArcPayLinks
                                                          receipt page ◄── reads receipts[invoiceId] + Paid log
 ```
 
-- `invoiceId = keccak256(abi.encode(merchant, amount, nonce, keccak256(memo)))`. The id commits to every field of the link. If someone edits the amount or the address in a link, it becomes a different invoice, and the receipt page shows that it is unpaid.
+- `invoiceId = keccak256(abi.encode(chainId, contract, merchant, amount, nonce, keccak256(memo)))`. The id commits to every field of the link, to the chain and to the contract deployment:
+  - if someone edits the amount or the address in a link, it becomes a different invoice, and the receipt page shows that it is unpaid;
+  - a payment on testnet, or to another deployment, can never make a mainnet link show as paid.
+- The invoice id protects **verification**: a merchant (or anyone holding the original link) can tell whether that exact invoice was paid. It does not stop someone sending a payer an edited link, so payers should check the address and amount on the payment page.
 - Each invoice can be paid **once**. A second payment reverts with `AlreadyPaid`, which protects payers who click twice.
 - The contract **never holds funds**. It forwards `msg.value` to the merchant in the same call, and it has no owner, no admin and no upgrade path.
 - Each receipt stores its block number. The app can therefore fetch the `Paid` log, and with it the tx hash, through a one-block `eth_getLogs` call. This matters because Arc RPCs cap log ranges at about 5,000 blocks.
@@ -39,9 +42,9 @@ create link  ──(URL: to, amt,     open link ─► wallet ─► ArcPayLinks
 | `#/` | Create a payment link |
 | `#/pay?c=…&to=…&amt=…&n=…&m=…` | Pay a link. If the link is already paid, this page shows its receipt |
 | `#/receipt?…` | Receipt for a link, read from the chain |
-| `#/tx/<hash>?c=<chainId>` | Receipt looked up by transaction hash |
+| `#/tx/<hash>?c=<chainId>[&link=…]` | Every payment in a transaction. A payment is shown as verified only if it matches a link you supplied or created in this browser; otherwise it shows as "payment found, not matched to an invoice" |
 | `#/links` | Links created in this browser, with their live paid or open status (stored in localStorage only) |
-| `#/deploy` | Operator page that deploys the contract from a browser wallet |
+| `#/deploy` | Dev builds only (`npm run dev`): deploys the contract from a browser wallet |
 
 ## Repository layout
 
@@ -51,7 +54,8 @@ web/         Vite + TypeScript + viem static site (no framework)
   src/link.ts      link encoding and invoice id (mirrors the contract)
   src/receipt.ts   reads receipts by link or by tx hash
   e2e/             end-to-end test against any RPC (anvil, arc-anvil, Arc testnet)
-scripts/deploy.sh  guarded deploy for testnet and mainnet
+scripts/deploy.sh       guarded deploy (encrypted keystore, chain guard, balance check)
+scripts/test-deploy.sh  tests for deploy.sh against anvil
 docs/        deploy guide, demo script, submission text, hosting plan
 ```
 
@@ -70,13 +74,18 @@ npm run dev                      # http://localhost:5173
 
 # end to end against a local Arc-flavoured node
 arc-anvil --network arc &
-E2E_RPC_URL=http://127.0.0.1:8545 E2E_PRIVATE_KEY=<anvil dev key> npm run e2e
+cp ../.env.example ../.env       # set E2E_RPC_URL=http://127.0.0.1:8545 and anvil's first dev key in the file
+npm run e2e
+
+# deploy script checks (needs anvil, jq, python3)
+cd .. && scripts/test-deploy.sh
 ```
 
 ## Tests
 
-- **Contract (10 tests, including a 1,024-run fuzz test).** Covers payment forwarding and the stored receipt, the event, double-pay protection, zero amount and zero merchant, a merchant that rejects the payment, re-entrancy by the merchant, and a fixed invoice-id vector. They pass under both `forge test` and `arc-forge test --network arc`.
-- **Web unit tests (17).** Cover the invoice id (checked against the same fixed vector as Solidity), amount parsing, link round-trips and rejection of bad links. They also check that `src/contract.ts` matches the Foundry build.
+- **Contract (13 tests, including a 1,024-run fuzz test).** Covers payment forwarding and the stored receipt, the event, double-pay protection, zero amount and zero merchant, a merchant that rejects the payment, re-entrancy by the merchant, fixed invoice-id vectors, ids that differ across chains and deployments, and a testnet payment never verifying the mainnet link. They pass under both `forge test` and `arc-forge test --network arc`.
+- **Web unit tests (36).** Cover the invoice id (checked against the same fixed vectors as Solidity, and across chains and contracts), amount parsing, link round-trips, rejection of bad links and of hidden or direction-changing characters in memos, and receipt reading and matching with a fake RPC client. They also check that `src/contract.ts` matches the Foundry build.
+- **Deploy script (10 checks, `scripts/test-deploy.sh`).** Runs against anvil: the chain guard, a missing keystore, balance math above 2^63 wei, low and dust balances, a real local deploy from a keystore, and that the script never passes a private key on the command line.
 - **End to end.** This test deploys the contract, creates a link and checks that the link reads as unpaid. It then pays the link and checks that the funds reached the merchant and that the contract holds nothing. Finally it checks that the receipt by link equals the receipt by tx hash, and that a second payment reverts. It has passed against `anvil`, against `arc-anvil --network arc` and against an anvil fork of Arc testnet.
 
 ## Limitations
@@ -84,6 +93,9 @@ E2E_RPC_URL=http://127.0.0.1:8545 E2E_PRIVATE_KEY=<anvil dev key> npm run e2e
 - Links are bearer data. Anyone who has a link can see its memo, and the memo is stored onchain. Do not put private information in a memo.
 - "My links" lives in your browser's localStorage. If you clear site data, the list is gone, although the links themselves still work.
 - There is no refund flow. A refund is a normal transfer from the merchant back to the payer.
+- The contract has no owner and no rescue function. USDC sent to the contract through the ERC-20 interface (`0x3600…0000`) is not forwarded and **cannot be recovered**. A direct `pay` call with a value different from the link's amount does not fail: it creates, and pays, a different invoice id, which the original link will not show as paid.
+- Production builds offer Arc mainnet only. Testnet appears only in dev builds or builds made with `VITE_ENABLE_TESTNET=true`, and every page on a test network shows a red "TEST NETWORK — NO REAL MONEY" banner instead of a "verified" badge.
+- Memos with invisible or direction-changing characters are rejected when links are created or opened. Memos read from a transaction show such characters as `\u{…}`.
 - The contract is unaudited. It is about 70 lines, holds no funds and has no admin functions, but use it at your own risk.
 
 ## How this was built

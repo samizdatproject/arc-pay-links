@@ -13,7 +13,7 @@ import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { describe, expect, it } from 'vitest';
 import { arcPayLinksAbi, arcPayLinksBytecode } from '../src/contract';
 import { decodeLink, encodeLink, formatUsdc, invoiceIdOf, parseUsdc, randomNonce, type PayLink } from '../src/link';
-import { fetchReceipt, fetchReceiptByTx } from '../src/receipt';
+import { fetchPaymentsInTx, fetchReceipt, matchLink } from '../src/receipt';
 
 const envFile = fileURLToPath(new URL('../../.env', import.meta.url));
 if (existsSync(envFile)) process.loadEnvFile(envFile);
@@ -84,13 +84,19 @@ describe('ArcPayLinks end to end', () => {
     // 5. Receipt by link and by tx hash agree.
     const byLink = await fetchReceipt(client, contract, link);
     expect(byLink).not.toBeNull();
-    expect(byLink!.invoiceId).toBe(invoiceIdOf(link));
+    expect(byLink!.invoiceId).toBe(invoiceIdOf(link, contract));
+    // The contract computes the same chain- and deployment-bound id.
+    expect(await client.readContract({ address: contract, abi: arcPayLinksAbi, functionName: 'invoiceIdOf', args: [link.merchant, link.amount, link.nonce, link.memo] })).toBe(byLink!.invoiceId);
     expect(byLink!.payer).toBe(account.address);
     expect(byLink!.merchant).toBe(link.merchant);
     expect(byLink!.amount).toBe(link.amount);
     expect(byLink!.txHash).toBe(payHash);
-    const byTx = await fetchReceiptByTx(client, contract, payHash);
+    const inTx = await fetchPaymentsInTx(client, contract, payHash);
+    expect(inTx).toHaveLength(1);
+    const byTx = inTx[0]!;
     expect(byTx.invoiceId).toBe(byLink!.invoiceId);
+    expect(matchLink(byTx, [link], contract)).toEqual(link);
+    expect(matchLink(byTx, [{ ...link, amount: link.amount * 2n }], contract)).toBeUndefined();
     expect(byTx.memo).toBe(link.memo);
     expect(byTx.paidAt.getTime()).toBe(byLink!.paidAt.getTime());
 

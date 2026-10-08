@@ -77,16 +77,59 @@ contract ArcPayLinksTest is Test {
 
     function test_InvoiceIdMatchesOffchainFormula() public view {
         bytes32 nonce = bytes32(uint256(42));
-        bytes32 expected = keccak256(abi.encode(merchant, uint256(1e18), nonce, keccak256(bytes("hi"))));
+        bytes32 expected = keccak256(
+            abi.encode(block.chainid, address(links), merchant, uint256(1e18), nonce, keccak256(bytes("hi")))
+        );
         assertEq(links.invoiceIdOf(merchant, 1e18, nonce, "hi"), expected);
     }
 
-    /// Fixed vector shared with the web app test (web/test/link.test.ts).
-    function test_InvoiceIdKnownVector() public view {
-        bytes32 id = links.invoiceIdOf(
-            payable(0x000000000000000000000000000000000000bEEF), 1.5 ether, bytes32(uint256(1)), "Invoice #7"
+    /// Fixed vectors shared with the web app test (web/test/link.test.ts).
+    function test_InvoiceIdKnownVectors() public {
+        address at = 0x00000000000000000000000000000000C0FfeE00;
+        deployCodeTo("ArcPayLinks.sol:ArcPayLinks", at);
+        ArcPayLinks fixedLinks = ArcPayLinks(at);
+        address payable m = payable(0x000000000000000000000000000000000000bEEF);
+
+        vm.chainId(5042);
+        assertEq(
+            fixedLinks.invoiceIdOf(m, 1.5 ether, bytes32(uint256(1)), "Invoice #7"),
+            0xf45eea7981f89ee5addfb755ee6dc37081eb2f79dff961a404b9152949aa4045
         );
-        assertEq(id, 0x97cb530360c187e7f7c1ed2b307bf9a6082de8de15f3c775355eda1feda6fa8a);
+        vm.chainId(5042002);
+        assertEq(
+            fixedLinks.invoiceIdOf(m, 1.5 ether, bytes32(uint256(1)), "Invoice #7"),
+            0x830d86cb87b1d2a71b40763d456869bb76ce65e3963853d394ed43dcd50fb526
+        );
+    }
+
+    function test_InvoiceIdDiffersAcrossChains() public {
+        vm.chainId(5042);
+        bytes32 mainnetId = links.invoiceIdOf(merchant, 1 ether, bytes32(0), "m");
+        vm.chainId(5042002);
+        assertTrue(links.invoiceIdOf(merchant, 1 ether, bytes32(0), "m") != mainnetId);
+    }
+
+    function test_InvoiceIdDiffersAcrossDeployments() public {
+        ArcPayLinks other = new ArcPayLinks();
+        assertTrue(
+            other.invoiceIdOf(merchant, 1 ether, bytes32(0), "m")
+                != links.invoiceIdOf(merchant, 1 ether, bytes32(0), "m")
+        );
+    }
+
+    /// A payment made on testnet never shows up as paid for the identical mainnet link.
+    function test_TestnetPaymentNeverVerifiesMainnetLink() public {
+        vm.chainId(5042002);
+        vm.prank(payer);
+        bytes32 testnetId = links.pay{value: 1 ether}(merchant, bytes32(0), "m");
+        (, uint64 paidAtTestnet,,,) = links.receipts(testnetId);
+        assertTrue(paidAtTestnet != 0);
+
+        vm.chainId(5042);
+        bytes32 mainnetId = links.invoiceIdOf(merchant, 1 ether, bytes32(0), "m");
+        assertTrue(mainnetId != testnetId);
+        (, uint64 paidAtMainnet,,,) = links.receipts(mainnetId);
+        assertEq(paidAtMainnet, 0);
     }
 
     function test_RevertWhen_PaidTwice() public {

@@ -44,14 +44,33 @@ export function randomNonce(): Hex {
   return toHex(b);
 }
 
-/** Same formula as ArcPayLinks.invoiceIdOf. */
-export function invoiceIdOf(l: Pick<PayLink, 'merchant' | 'amount' | 'nonce' | 'memo'>): Hex {
+/**
+ * Same formula as ArcPayLinks.invoiceIdOf: binds the link to its chain and to one contract
+ * deployment, so a payment on testnet (or on another deployment) never matches a mainnet link.
+ */
+export function invoiceIdOf(l: Pick<PayLink, 'chainId' | 'merchant' | 'amount' | 'nonce' | 'memo'>, contract: Address): Hex {
   return keccak256(
     encodeAbiParameters(
-      [{ type: 'address' }, { type: 'uint256' }, { type: 'bytes32' }, { type: 'bytes32' }],
-      [l.merchant, l.amount, l.nonce, keccak256(new TextEncoder().encode(l.memo))],
+      [
+        { type: 'uint256' },
+        { type: 'address' },
+        { type: 'address' },
+        { type: 'uint256' },
+        { type: 'bytes32' },
+        { type: 'bytes32' },
+      ],
+      [BigInt(l.chainId), contract, l.merchant, l.amount, l.nonce, keccak256(new TextEncoder().encode(l.memo))],
     ),
   );
+}
+
+/** Bidi overrides/isolates and zero-width characters, which can make a memo display differently from what it says. */
+export const HIDDEN_CHARS = /[\u200B-\u200F\u202A-\u202E\u2060-\u2069\uFEFF]/;
+const HIDDEN_CHARS_G = new RegExp(HIDDEN_CHARS.source, 'g');
+
+/** Makes hidden characters visible, for memos that did not come through our own validation (e.g. read from a tx). */
+export function revealHidden(s: string): string {
+  return s.replace(HIDDEN_CHARS_G, (c) => `\\u{${c.codePointAt(0)!.toString(16).toUpperCase()}}`);
 }
 
 export function validateLink(l: PayLink): PayLink {
@@ -61,6 +80,7 @@ export function validateLink(l: PayLink): PayLink {
   if (l.amount <= 0n) throw new Error('Amount must be greater than zero');
   if (l.amount % 10n ** 12n !== 0n) throw new Error(`Amount has more than ${MAX_DECIMALS} decimals`);
   if (!/^0x[0-9a-fA-F]{64}$/.test(l.nonce)) throw new Error('Bad nonce');
+  if (HIDDEN_CHARS.test(l.memo)) throw new Error('Memo contains invisible or direction-changing characters');
   if (new TextEncoder().encode(l.memo).length > MAX_MEMO_BYTES)
     throw new Error(`Memo is longer than ${MAX_MEMO_BYTES} bytes`);
   return { ...l, merchant: getAddress(l.merchant), nonce: l.nonce.toLowerCase() as Hex };

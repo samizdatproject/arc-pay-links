@@ -42,3 +42,4 @@ button[disabled] { opacity: .5; cursor: not-allowed; }
 .linkrow a { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .muted { color: var(--muted); font-size: .85rem; }
 @media (max-width: 480px) { .row { flex-direction: column; gap: 2px; } .row .label { flex-basis: auto; } }
+.testnet-banner { margin: -4px 0 12px; padding: 10px 12px; border-radius: 8px; background: #b91c1c; color: #fff; font-weight: 700; letter-spacing: .02em; text-align: center; }
