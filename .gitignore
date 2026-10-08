@@ -1,0 +1,14 @@
+# secrets
+.env
+.env.*
+!.env.example
+# build output
+node_modules/
+web/dist/
+contracts/out/
+contracts/cache/
+# local e2e output (testnet/mainnet hashes are recorded in docs/)
+e2e-results/
+.DS_Store
+.omc/
+.testnet-address
