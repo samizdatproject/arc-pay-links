@@ -9,7 +9,7 @@ Arc Pay Links
 samizdatproject
 
 **3. Contact email**
-`<owner to fill in: an email the owner is willing to use for payout verification>`
+`samizdatproject@proton.me`
 
 **4. Public builder profiles (GitHub, X, Farcaster)**
 https://github.com/samizdatproject
@@ -19,20 +19,20 @@ https://samizdatproject.github.io/arc-pay-links/
 (A paid example receipt: `https://samizdatproject.github.io/arc-pay-links/#/tx/<PAY_TX_HASH>?c=5042`)
 
 **6. Arc mainnet contract address or a transaction hash we can verify**
-Contract `ArcPayLinks`: `<CONTRACT_ADDRESS>` (https://explorer.arc.io/address/<CONTRACT_ADDRESS>)
+Contract `ArcPayLinks`: `0xbf067bc47e3d18e09edb67911de32d0b41bdf0a2` (https://explorer.arc.io/address/0xbf067bc47e3d18e09edb67911de32d0b41bdf0a2)
 Example payment: `<PAY_TX_HASH>`
 
 **7. Public repo**
 https://github.com/samizdatproject/arc-pay-links
 
 **8. In two sentences, what does your project do?**
-Arc Pay Links lets anyone request USDC with a shareable link: the payer pays it in one transaction from a browser wallet, and both sides get a receipt read directly from Arc. Each link's invoice id commits to its address, amount, memo and nonce, so a link cannot be tampered with or paid twice, and the whole app is a static site plus a 70-line contract with no backend.
+Arc Pay Links lets anyone request USDC with a shareable link: the payer pays it in one transaction from a browser wallet, and both sides get a receipt read directly from Arc. Each invoice id commits to the chain, contract, merchant, amount, memo and nonce, so an edited link becomes a different invoice that can't pass the merchant's receipt check, and no invoice can be paid twice; and the whole app is a static site plus a 70-line contract with no backend.
 
 **9. What does it use Arc for?**
 It uses USDC as Arc's native currency: `pay()` takes the payment as `msg.value` and forwards it to the merchant in the same call. That removes the ERC-20 approve step, and the payer needs nothing but USDC, including for gas (about 0.003 USDC per payment). Arc's sub-second deterministic finality means the receipt is final as soon as it is shown. The contract stores each receipt onchain (payer, merchant, amount, time and block), so verification needs nothing but an Arc RPC.
 
 **10. Had you deployed to Arc before this project?**
-`<owner to choose. Truthful answer as of 2026-10-08: "No" for mainnet; no testnet deployment was made for this project either>`
+No
 
 **11. Have you received a Circle or Arc grant, bounty, or prize for this project?**
 No
