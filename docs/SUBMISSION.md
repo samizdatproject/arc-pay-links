@@ -16,11 +16,11 @@ https://github.com/samizdatproject
 
 **5. Link to your live deployment on Arc mainnet**
 https://samizdatproject.github.io/arc-pay-links/
-(A paid example receipt: `https://samizdatproject.github.io/arc-pay-links/#/tx/<PAY_TX_HASH>?c=5042`)
+(A paid example receipt: `https://samizdatproject.github.io/arc-pay-links/#/tx/0xee33e8191459c24920a717284ae2f7223877f46f0ff44f08a07db6a5ec2d75db?c=5042`)
 
 **6. Arc mainnet contract address or a transaction hash we can verify**
 Contract `ArcPayLinks`: `0xbf067bc47e3d18e09edb67911de32d0b41bdf0a2` (https://explorer.arc.io/address/0xbf067bc47e3d18e09edb67911de32d0b41bdf0a2)
-Example payment: `<PAY_TX_HASH>`
+Example payment: `0xee33e8191459c24920a717284ae2f7223877f46f0ff44f08a07db6a5ec2d75db`
 
 **7. Public repo**
 https://github.com/samizdatproject/arc-pay-links
