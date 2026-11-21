@@ -1,5 +1,9 @@
 # Arc Pay Links
 
+[![tests](https://github.com/samizdatproject/arc-pay-links/actions/workflows/ci.yml/badge.svg)](https://github.com/samizdatproject/arc-pay-links/actions/workflows/ci.yml)
+
+> **Status:** prototype built for Arc Microgrants (October 2026). The contract is not deployed, and the project is not under active development.
+
 USDC payment links with onchain receipts, on [Arc](https://arc.io).
 
 A merchant fills in an address, an amount and a memo, and gets a link. The payer opens it, connects a browser wallet and pays in **one transaction**. The payment is made in USDC, and so is the gas, because USDC is Arc's native gas token. Anyone holding the link can then open a receipt page that is read straight from the chain. There is no backend, no account and no database.
