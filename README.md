@@ -2,14 +2,14 @@
 
 [![tests](https://github.com/samizdatproject/arc-pay-links/actions/workflows/ci.yml/badge.svg)](https://github.com/samizdatproject/arc-pay-links/actions/workflows/ci.yml)
 
-> **Status:** prototype built for Arc Microgrants (October 2026). The contract is not deployed, and the project is not under active development.
+> **Status:** built for Arc Microgrants (October 2026) and live on Arc mainnet. Not under active development.
 
 USDC payment links with onchain receipts, on [Arc](https://arc.io).
 
 A merchant fills in an address, an amount and a memo, and gets a link. The payer opens it, connects a browser wallet and pays in **one transaction**. The payment is made in USDC, and so is the gas, because USDC is Arc's native gas token. Anyone holding the link can then open a receipt page that is read straight from the chain. There is no backend, no account and no database.
 
-- **Live app:** _(not deployed yet: see [docs/DEPLOY.md](docs/DEPLOY.md))_
-- **Contract on Arc mainnet:** _(not deployed yet)_
+- **Live app:** https://samizdatproject.github.io/arc-pay-links/ ([example paid receipt](https://samizdatproject.github.io/arc-pay-links/#/receipt?c=5042&to=0x161fF793FDeFCa9e2b42749f9D603aEd8027C369&amt=0.01&n=0x39eb8733ddc12621c81ed5132696f4c10bad0e22a24cd66722f031453ffa46be&m=Arc%20Pay%20Links%20launch%20demo))
+- **Contract on Arc mainnet:** [`0xbf067bc47e3d18e09edb67911de32d0b41bdf0a2`](https://explorer.arc.io/address/0xbf067bc47e3d18e09edb67911de32d0b41bdf0a2)
 
 ## Why Arc
 
